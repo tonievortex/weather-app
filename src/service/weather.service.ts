@@ -30,9 +30,7 @@ async function getCity(city: string): Promise<cityData> {
   return data;
 }
 
-export async function GetWeather(
-  City: string | "Europe/Warsaw"
-): Promise<WeatherData | null> {
+export async function GetWeather(): Promise<WeatherData | null> {
   const city = await getCity("Warsaw");
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&current_weather=true`;
 
