@@ -4,9 +4,8 @@ import { GetWeather, type WeatherData } from "../service/weather.service";
 import { format } from "date-fns";
 
 const weather = ref<WeatherData | null>(null);
-const city = "Europe/Warsaw";
 onMounted(async () => {
-  weather.value = await GetWeather(city);
+  weather.value = await GetWeather();
 });
 
 const today = new Date();
