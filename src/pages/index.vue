@@ -1,46 +1,116 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, onUnmounted, ref, computed } from "vue";
 import { GetWeather, type WeatherData } from "../service/weather.service";
 import { format } from "date-fns";
+import { pl } from "date-fns/locale";
 
 const weather = ref<WeatherData | null>(null);
-onMounted(async () => {
-  weather.value = await GetWeather();
+const errorOccurred = ref(false);
+
+function getWarsawDate() {
+  return new Date(
+    new Date().toLocaleString("en-US", { timeZone: "Europe/Warsaw" })
+  );
+}
+
+const currentTime = ref(getWarsawDate());
+const today = computed(() => currentTime.value);
+
+let clockTimer: ReturnType<typeof setInterval> | null = null;
+let weatherTimer: ReturnType<typeof setInterval> | null = null;
+
+async function updateWeather() {
+  console.log("Aktualizacja pogody...");
+  try {
+    const data = await GetWeather();
+    console.log("Dane z API:", data); // Sprawdź to w konsoli!
+
+    // Sprawdzamy czy dane mają wymagane pola, aby uniknąć błędu toFixed
+    if (data && typeof data.latitude === "number") {
+      weather.value = data;
+      errorOccurred.value = false;
+    } else {
+      console.error("API zwróciło niepełne dane:", data);
+      errorOccurred.value = true;
+    }
+  } catch (error) {
+    console.error("Błąd pobierania pogody:", error);
+    errorOccurred.value = true;
+  }
+}
+
+onMounted(() => {
+  updateWeather();
+  clockTimer = setInterval(() => {
+    currentTime.value = getWarsawDate();
+  }, 1000);
+  weatherTimer = setInterval(() => {
+    updateWeather();
+  }, 60000);
 });
 
-const today = new Date();
+onUnmounted(() => {
+  if (clockTimer) clearInterval(clockTimer);
+  if (weatherTimer) clearInterval(weatherTimer);
+});
 
-const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Satu", "Sun"];
+function getFormattedDay(date: Date) {
+  const day = format(date, "EEEE", { locale: pl });
+  return day.charAt(0).toUpperCase() + day.slice(1);
+}
 </script>
 
 <template>
   <div
-    class="w-full h-screen flex justify-center bg-[url(../assets/bg.jpg)] bg-no-repeat bg-cover bg-center items-center"
+    class="w-full h-screen flex justify-center items-center bg-linear-to-b from-[#2e4470] via-[#4d628c] to-[#928ab1]"
   >
     <div
-      class="w-130 h-160 rounded-[80px] bg-gray-200/40 p-7 pt-10 flex-row flex"
+      class="w-130 h-160 rounded-[80px] p-7 pt-10 flex flex-col items-center bg-white/5 backdrop-blur-md border border-white/10 shadow-2xl overflow-hidden text-white"
     >
-      <div class="w-120 h-60 rounded-[80px] bg-gray-600/80">
-        <img
-          src="../assets/cloud.png"
-          alt="Hmurka :)"
-          class="w-[30%] h-[20%] mt-20"
-        />
-        <div
-          class="flex flex-col h-30 w-full mr-10 text-xl font-sans items-center"
-        >
-          <p>{{ format(today, "EEEE") }}, {{ format(today, "HH:mm") }}</p>
-          <p class="text-2xl text-white">
-            Cloudy {{ weather ? weather.temperature + "°C" : "loading..." }}
+      <div
+        v-if="weather && weather.latitude !== undefined"
+        class="text-center w-full animate-in fade-in duration-500"
+      >
+        <h2 class="text-3xl font-semibold mb-1">Warszawa</h2>
+
+        <p class="text-sm opacity-70 mb-4">
+          {{ weather.latitude.toFixed(2) }}°N,
+          {{ weather.longitude.toFixed(2) }}°E
+        </p>
+
+        <div class="mb-8">
+          <p class="text-xl">{{ getFormattedDay(today) }}</p>
+          <p class="text-5xl font-light tracking-tighter tabular-nums">
+            {{ format(today, "HH:mm:ss") }}
           </p>
         </div>
-        <div class="flex flex-row gap-3 justify-center items-center mt-10">
+
+        <div class="flex flex-col items-center">
+          <span class="text-8xl font-thin ml-4">
+            {{ Math.round(weather.temperature ?? 0) }}°
+          </span>
+          <p class="text-2xl font-medium mt-2">Pochmurnie</p>
+        </div>
+      </div>
+
+      <div v-else class="flex flex-col items-center justify-center h-full">
+        <div v-if="!errorOccurred" class="flex flex-col items-center">
           <div
-            v-for="day in days"
-            class="bg-gray-600 text-gray-200 rounded-4xl h-50 w-14 flex justify-center"
+            class="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin mb-4"
+          ></div>
+          <p class="text-lg animate-pulse">Ładowanie danych...</p>
+        </div>
+        <div v-else class="text-center p-4">
+          <p class="text-red-300 mb-2">Błąd danych API</p>
+          <p class="text-xs opacity-50 mb-4">
+            Sprawdź konsolę (F12), aby zobaczyć format danych.
+          </p>
+          <button
+            @click="updateWeather"
+            class="px-4 py-2 bg-white/10 rounded-full hover:bg-white/20 transition"
           >
-            <p class="mt-5 text-xs">{{ day }}</p>
-          </div>
+            Spróbuj ponownie
+          </button>
         </div>
       </div>
     </div>
